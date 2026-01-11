@@ -9,3 +9,6 @@ wheels/
 # Virtual environments
 .venv
 .env
+
+#teest scripts
+test_*.py
