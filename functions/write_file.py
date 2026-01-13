@@ -10,7 +10,7 @@ def write_file(working_directory, file_path, content):
     is_inside = abs_file_path == abs_working_dir or abs_file_path.startswith(abs_working_dir + os.sep)
     #valid_target_dir = os.path.commonpath([abs_working_dir, abs_file_path]) == abs_working_dir
 
-    print("DEBUG write_file:", working_directory, file_path, abs_working_dir, abs_file_path, "is_inside=", is_inside)
+    #print("DEBUG write_file:", working_directory, file_path, abs_working_dir, abs_file_path, "is_inside=", is_inside)
 
 
     if not is_inside:

@@ -1,4 +1,5 @@
 import os
+import sys
 import argparse
 from dotenv import load_dotenv
 from google import genai
@@ -22,45 +23,61 @@ def main():
     args = parser.parse_args()
 
     messages = [types.Content(role="user", parts=[types.Part(text=args.user_prompt)])]
-
-    response = client.models.generate_content(model="gemini-2.5-flash",
-                                              contents=messages, 
-                                              config=types.GenerateContentConfig(
-                                                  system_instruction=system_prompt,
-                                                  temperature=0,
-                                                  tools=[available_functions]))
-
     
-    if response.usage_metadata == None:
-        raise RuntimeError("Usage metadata was not populated. API request likely failed.")
+    MAX_ITERATIONS = 30
 
-    if args.verbose:
-        print(f"User prompt: {args.user_prompt}")
-        print(f"Prompt tokens: {response.usage_metadata.prompt_token_count}")
-        print(f"Response tokens: {response.usage_metadata.candidates_token_count}")
+    for iteration in range(MAX_ITERATIONS):
 
-    function_results = []
+        response = client.models.generate_content(model="gemini-2.5-flash",
+                                                contents=messages, 
+                                                config=types.GenerateContentConfig(
+                                                    system_instruction=system_prompt,
+                                                    temperature=0,
+                                                    tools=[available_functions]))
 
-    if response.function_calls:
-        for function_call in response.function_calls:
-            function_call_result = call_function(function_call, args.verbose)
+        if response.candidates:
+            for candidate in response.candidates:
+                messages.append(candidate)
+        
+        if response.usage_metadata == None:
+            raise RuntimeError("Usage metadata was not populated. API request likely failed.")
 
-            if len(function_call_result.parts) == 0:
-                raise Exception("Function call result was returned empty.")
-            
-            if function_call_result.parts[0].function_response == None:
-                raise Exception("Function call did not return a FunctionResponse object.")
-            
-            if function_call_result.parts[0].function_response.response == None:
-                raise Exception("First part of function response was returned empty.")
-            
-            function_results.append(function_call_result.parts[0])
+        if args.verbose:
+            print(f"User prompt: {args.user_prompt}")
+            print(f"Prompt tokens: {response.usage_metadata.prompt_token_count}")
+            print(f"Response tokens: {response.usage_metadata.candidates_token_count}")
 
-            resp = function_call_result.parts[0].function_response.response
+        function_responses = []
 
-            if args.verbose:
-                result_text = resp.get("result") if isinstance(resp, dict) else resp
-                print(f"-> {result_text}")
+        if response.function_calls:
+            for function_call in response.function_calls:
+                function_call_result = call_function(function_call, args.verbose)
+
+                if len(function_call_result.parts) == 0:
+                    raise Exception("Function call result was returned empty.")
+                
+                if function_call_result.parts[0].function_response == None:
+                    raise Exception("Function call did not return a FunctionResponse object.")
+                
+                if function_call_result.parts[0].function_response.response == None:
+                    raise Exception("First part of function response was returned empty.")
+                
+                function_responses.append(function_call_result.parts[0])
+
+                resp = function_call_result.parts[0].function_response.response
+
+                if args.verbose:
+                    result_text = resp.get("result") if isinstance(resp, dict) else resp
+                    print(f"-> {result_text}")
+        else:
+            if iteration == MAX_ITERATIONS - 1:
+                print("Error: maximum iterations reached without final response.")
+                sys.exit(1)
+            else:
+                print(response.text)
+                return
+
+        messages.append(types.Content(role="user", parts=function_responses))
 
 if __name__ == "__main__":
      main()
